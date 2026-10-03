@@ -1,0 +1,18 @@
+# Local PHP runtime (Windows)
+php-*/
+
+# Secrets
+.env
+*.key
+
+# Python
+__pycache__/
+.venv/
+*.pyc
+
+# Cached datasets
+data/cache/
+
+# OS files
+.DS_Store
+Thumbs.db
