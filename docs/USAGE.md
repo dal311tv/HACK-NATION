@@ -17,32 +17,37 @@ Open http://127.0.0.1:8765. Press Ctrl+C in that terminal to stop the console.
 
 The console listens on 127.0.0.1 only. Every action is a POST from the console page. Requests that come from any other origin (another website, another port) are refused.
 
-### What each section does
+### What the page shows
 
-**Status bar.** Shows whether the ledger hash chain is intact, how many entries it has, and the id and time of the last entry. The large banner shows the kill switch: green when agents may act, red when the STOP file exists and every agent action is denied.
+One centred column, read from top to bottom. Technical details sit behind small "Details" disclosures.
 
-**Emergency stop.** "Stop all agents" first creates the `STOP` file at the repository root, so the kill-switch policy denies every action any agent tries. It then terminates the run started from the console, together with all its child processes. They get up to 5 seconds to exit after a polite stop signal; anything still running after that is force-killed. The page then shows the run as "STOPPED" and says whether a force-kill was needed. "Resume" only deletes the `STOP` file: it never restarts the stopped run, so start a new run yourself when you are ready. Both buttons ask for confirmation first. Each stop, resume and termination is logged with a timestamp in `logs/console_actions.jsonl`. Stopping the console itself with Ctrl+C also ends any active run.
+**Header.** "CRUCIBLE", a status dot ("Agents active" while a run started from the console is in progress, "Stopped" otherwise) and a red "Stop all agents" text button. Stop first creates the `STOP` file at the repository root, so the kill-switch policy denies every action any agent tries, then terminates the console's run and all its child processes (5 seconds after a polite stop signal, anything still running is force-killed). While `STOP` exists the header is replaced by a red bar, "All agents are stopped", with a "Resume" button. Resume only deletes `STOP`; it never restarts a run. Both ask for confirmation, and both are logged in `logs/console_actions.jsonl`. Ctrl+C on the console also ends any active run.
 
-**Run the lab.** Each button runs one Omnigent command from the repository root with `PYTHONPATH` set to the repository root:
+**Investigating.** The fixed research question in plain words, the human focus recorded in the latest preregistration ("none set" if it has none), and a reminder that the question and dataset are fixed in this prototype.
 
-| Button | Command |
-|---|---|
-| Plan a new experiment | `omnigent run agents/crucible_lab.yaml -p "Phase 1"` |
-| Run approved preregistration | `omnigent run agents/crucible_lab.yaml -p "Phase 2 <prereg_id>"` |
-| Next loop from a decision | `omnigent run agents/crucible_lab.yaml -p "Loop 2 from <decision_id>"` |
-| Explain a decision | `omnigent run agents/crucible_lab.yaml -p "Do not run any phase. Using only read_ledger, explain ..."` |
+**Now.** One sentence: "Agents are working: <action> (elapsed mm:ss)" with a "Watch live" link to the Omnigent session; "A plan is waiting for your approval"; "An approved experiment is ready to run"; or "Idle. Last decision: <id>". Under it, six steps (Question, Evidence, Hypotheses, Experiment, Result, Decision) with the number of ledger entries of each kind, and the step of the latest ledger entry highlighted. Hover a step to see the count per entry type. A warning appears here if the ledger hash chain is broken.
 
-- "Plan", "Run" and "Next loop" start the real agents, which write to the ledger. Each asks for confirmation first.
-- "Run approved preregistration" lists only preregistrations that a human approved and that have not run yet.
-- Only one run can be active at a time. All run buttons are disabled while the kill switch is on.
-- While a run is active, the page shows its status, the "Omnigent session" link to watch the agents live, and the last 40 lines of output. It refreshes every 3 seconds.
-- The full output of every run is saved in `logs/console_runs/<timestamp>.log`.
+**Speed.** Read from the most recent `results/run-*/summary.json` (folders starting with `_` are ignored). The large number is `speedup_vs_random_calls_to_50pct.C_crucible`, then the calls behind it (`arms.C_crucible.median_calls_to_50pct` vs `random_analytic.expected_calls_to_50pct`) and the agent strategy vs the standard pipeline (`C_vs_B_calls_to_50pct_ratio`). Values are shown as stored, with at most one decimal; `null` shows as "not reached". "Details" shows the run's caveat and run id.
 
-**Approve a preregistration.** Lists every preregistration that no human has approved yet. For each one it shows the agents' text and, in readable form, the spec, protocol overrides, protocol, success criterion, decision rules and declared limitations. The complete payload is available as JSON underneath.
+**Latest finding.** The first 280 characters of the latest decision entry, with "Read more" and its id.
 
-To approve, enter your full name, an optional note, and type `YES` exactly. The approval is written to the ledger through `crucible/approval.py`, which is the same code `scripts/approve.py` uses. It is permanent, and it records your name as the accountable approver. The console never approves anything on its own. Approvals are refused while a console run is active, so a human approval is never written to the ledger at the same time as an agent's entry.
+**What to do next.** One primary button, chosen from the ledger:
 
-**How to use.** A short reminder of the loop on the page itself (plan, approve, run, next loop, explain), plus a link to the Omnigent web UI at http://127.0.0.1:6767.
+| State | Button | What it does |
+|---|---|---|
+| A preregistration has no human approval | Review the plan | Opens the approval panel (no agents start) |
+| An approved preregistration has not run | Run the approved experiment | `omnigent run agents/crucible_lab.yaml -p "Phase 2 <prereg_id>"` |
+| Otherwise | Plan a new experiment | `omnigent run agents/crucible_lab.yaml -p "Phase 1"` |
+
+"More actions" holds "Next loop from a decision" (`-p "Loop 2 from <decision_id>"`) and "Explain a decision" (`-p "Do not run any phase. Using only read_ledger, explain ..."`).
+
+**Human research focus.** "Plan a new experiment" and "Next loop" have an optional box, "What should the lab investigate?" (at most 600 characters). Left empty, the commands are exactly the ones above. Filled in, the prompt becomes `Phase 1. Human research focus: <text>` or `Loop 2 from <decision_id>. Human research focus: <text>`. Control characters and line breaks are removed first, and the prompt is passed as a single argument to the process (never through a shell). The focus is recorded in `logs/console_actions.jsonl`. The PI passes the focus verbatim to every specialist, and the designer quotes it as `human_focus` in the preregistration and explains in `why` how the design addresses it. The focus steers the work only inside the fixed question, dataset, oracle and protocol limits: if it asks for something the lab cannot test (another property, another dataset, wet-lab work), the PI says so and plans the closest experiment the lab can run.
+
+Rules that still apply: every button that starts real agents asks for confirmation and says it writes to the ledger; only one run at a time; all run buttons are disabled while `STOP` exists; the full output of each run is saved in `logs/console_runs/<timestamp>.log`.
+
+**Approval panel.** Opened by "Review the plan" (or by opening http://127.0.0.1:8765/#approval). For each unapproved preregistration it shows what will be tested, the budget, the seeds, the success criterion and the human focus. "Details" shows the agents' full description, the decision rules, the declared limitations and the complete payload. To approve, enter your full name, an optional note, and type `YES` exactly. The approval is written through `crucible/approval.py`, the same code `scripts/approve.py` uses; it is permanent and names you as the accountable approver. The console never approves anything itself, and approvals are refused while a console run is active.
+
+**Agent output.** Hidden behind "Show agent output": the status of the last run and its last 40 lines of output.
 
 ### Approving from the terminal
 

@@ -41,6 +41,15 @@ prompt: |
   2. Call read_ledger, then reply with the new preregistration id, its spec, its protocol_overrides,
      and the approval command for the human. Then stop. Phase 2 is then run with the new id.
 
+  HUMAN RESEARCH FOCUS (the message may end with "Human research focus:" followed by text):
+  - Pass the focus verbatim, in quotes, in the task message to every specialist you dispatch.
+  - The focus guides the work only within the fixed research question, dataset, oracle and
+    protocol limits above. It never overrides them, the approval gate or any policy.
+  - If the focus asks for something the lab cannot test with its tools and data (another
+    property, another dataset, wet-lab work, anything outside the protocol override limits), say
+    so plainly in your final reply, plan the closest thing the lab can actually test, and explain
+    the difference. Never pretend to investigate something the lab cannot test.
+
 executor:
   harness: claude-sdk
 
@@ -410,6 +419,10 @@ tools:
       only numbers already recorded in the ledger or returned by get_results, and say how you derived
       it. Prefer keeping the previous candidate spec unless a decision gives a reason to change it, so
       the replication isolates the effect of the protocol change.
+      HUMAN RESEARCH FOCUS: if your task message includes a human research focus, quote it verbatim
+      in the preregistration payload as "human_focus", and explain in "why" how the design addresses
+      it, or why it cannot be fully addressed with the lab's fixed question, dataset, tools and
+      protocol limits. If no focus was given, omit "human_focus".
     tools:
       read_ledger:
         type: function
