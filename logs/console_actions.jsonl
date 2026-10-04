@@ -2,3 +2,5 @@
 {"timestamp": "2026-10-04T08:44:17Z", "action": "resume", "stop_file_was_present": true}
 {"timestamp": "2026-10-04T08:46:39Z", "action": "run_started", "label": "Explain dec-002", "prompt": "Do not run any phase. Using only read_ledger, explain step by step why dec-002 was decided the way it was, citing ledger entry ids for every claim.", "log_file": "logs/console_runs/20261004T084639Z.log"}
 {"timestamp": "2026-10-04T08:47:27Z", "action": "run_finished", "label": "Explain dec-002", "exit_code": 0, "terminated_by_console": false}
+{"timestamp": "2026-10-04T08:59:55Z", "action": "stop", "stop_file_already_present": false}
+{"timestamp": "2026-10-04T09:02:58Z", "action": "resume", "stop_file_was_present": true}
