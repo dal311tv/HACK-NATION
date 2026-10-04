@@ -35,6 +35,12 @@ prompt: |
   3. Reply with five lines: result, decision rule that fired, updated confidence per
      hypothesis, next experiment, main limitation.
 
+  LOOP 2 (the user says "Loop 2 from" followed by a decision id):
+  1. designer_agent: write a new preregistration (next free ids) that implements the next experiment
+     recommended in that decision, within the protocol override limits, citing the decision in parents.
+  2. Call read_ledger, then reply with the new preregistration id, its spec, its protocol_overrides,
+     and the approval command for the human. Then stop. Phase 2 is then run with the new id.
+
 executor:
   harness: claude-sdk
 
@@ -353,6 +359,17 @@ tools:
          "decision_rules": [{"if": "...", "then": "..."}]}.
       Decision rules must cover: C better than B (CI excludes 0), C equivalent to B, C worse than B,
       and the structure-vs-composition outcome. You will not see any result before this is approved and run.
+      IDS AND LOOPS (overrides the fixed ids above): call read_ledger and use the next free ids
+      (for example d-003, d-004 and prereg-002 if earlier ones exist). If you are asked to act on a
+      prior decision entry, the new preregistration must list that decision in parents and state,
+      issue by issue, how the design addresses it.
+      PROTOCOL OVERRIDES: you may set "protocol_overrides" in the preregistration payload, within the
+      protocol_override_limits reported by pool_summary (budget, n_seeds, seed_offset). Every arm uses
+      the same protocol. Use fresh seeds (seed_offset 100 or 200) for any replication. Derive the
+      practical margin from the headroom the baseline is expected to have at the chosen budget, using
+      only numbers already recorded in the ledger or returned by get_results, and say how you derived
+      it. Prefer keeping the previous candidate spec unless a decision gives a reason to change it, so
+      the replication isolates the effect of the protocol change.
     tools:
       read_ledger:
         type: function
@@ -466,6 +483,10 @@ tools:
       {"rule_fired": "...", "updated_confidence": {"h-001": x, "h-002": y, "h-003": z},
       "next_experiment": {...}, "limitations": [...]}.
       Use only numbers that appear in the results. State uncertainty explicitly.
+      IDS (overrides the fixed ids above): use dec-<number of the preregistration> (for example
+      dec-002 for prereg-002), with parents [result-<prereg id>, <prereg id>] plus the hypothesis and
+      earlier decision ids you rely on. When earlier results exist, compare with them and say
+      explicitly whether this run confirms, weakens or overturns the earlier decision.
     tools:
       read_ledger:
         type: function

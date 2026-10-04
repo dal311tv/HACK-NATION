@@ -12,7 +12,7 @@ import json
 from crucible.ledger import read_entries, resolve_path, verify_chain
 
 
-def _has_approved_preregistration(ledger_path) -> bool:
+def _has_approved_preregistration(ledger_path, prereg_id=None) -> bool:
     try:
         ok, _ = verify_chain(ledger_path)
         if not ok:
@@ -21,6 +21,8 @@ def _has_approved_preregistration(ledger_path) -> bool:
     except Exception:
         return False
     prereg_ids = {e["id"] for e in entries if e.get("type") == "preregistration"}
+    if prereg_id is not None:
+        prereg_ids = prereg_ids & {prereg_id}
     return any(
         e.get("type") == "approval"
         and e.get("agent") == "Human"
@@ -46,7 +48,8 @@ def make_blinding_policy(
         arguments = data.get("arguments") or {}
 
         if name.endswith(gated):
-            if _has_approved_preregistration(ledger):
+            prereg_id = arguments.get("prereg_id") if isinstance(arguments, dict) else None
+            if _has_approved_preregistration(ledger, prereg_id):
                 return {"result": "ALLOW"}
             return {
                 "result": "DENY",

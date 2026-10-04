@@ -21,14 +21,21 @@ FEATURE_SETS_PATH = REPO_ROOT / "data" / "feature_sets.json"
 LABELS_PATH = REPO_ROOT / "sealed_oracle_data" / "phonons_labels.csv"
 RESULTS_DIR = REPO_ROOT / "results"
 
-# Fixed by protocol so every arm runs under matched conditions. Agents cannot change these.
+# Default protocol (used by prereg-001). Within a run, every arm uses the same protocol.
 PROTOCOL = {
     "initial_size": 20,
     "budget": 200,
     "batch_size": 10,
     "n_seeds": 10,
+    "seed_offset": 0,
     "top_fraction": 0.05,
     "n_estimators": 100,
+}
+# Limits set by the human scientists. Designers may only choose overrides inside these limits.
+PROTOCOL_OVERRIDE_LIMITS = {
+    "budget": [40, 60, 80, 100, 200],
+    "n_seeds": {"min": 10, "max": 30},
+    "seed_offset": {"allowed": [0, 100, 200], "note": "Use 100 or 200 for fresh, independent seeds."},
 }
 ALLOWED_SPEC_VALUES = {
     "feature_set": ["composition", "composition_structure"],
@@ -56,6 +63,35 @@ def validate_spec(spec: dict) -> dict:
     return clean
 
 
+def effective_protocol(overrides: dict | None = None) -> dict:
+    """Return the protocol for a run: the default protocol plus validated overrides."""
+    protocol = dict(PROTOCOL)
+    if not overrides:
+        return protocol
+    if not isinstance(overrides, dict):
+        raise ValueError("protocol_overrides must be a JSON object")
+    unknown = set(overrides) - set(PROTOCOL_OVERRIDE_LIMITS)
+    if unknown:
+        raise ValueError(f"protocol_overrides may only set {sorted(PROTOCOL_OVERRIDE_LIMITS)}; got {sorted(unknown)}")
+    if "budget" in overrides:
+        budget = int(overrides["budget"])
+        if budget not in PROTOCOL_OVERRIDE_LIMITS["budget"]:
+            raise ValueError(f"budget must be one of {PROTOCOL_OVERRIDE_LIMITS['budget']}")
+        protocol["budget"] = budget
+    if "n_seeds" in overrides:
+        n_seeds = int(overrides["n_seeds"])
+        limits = PROTOCOL_OVERRIDE_LIMITS["n_seeds"]
+        if not limits["min"] <= n_seeds <= limits["max"]:
+            raise ValueError(f"n_seeds must be between {limits['min']} and {limits['max']}")
+        protocol["n_seeds"] = n_seeds
+    if "seed_offset" in overrides:
+        offset = int(overrides["seed_offset"])
+        if offset not in PROTOCOL_OVERRIDE_LIMITS["seed_offset"]["allowed"]:
+            raise ValueError(f"seed_offset must be one of {PROTOCOL_OVERRIDE_LIMITS['seed_offset']['allowed']}")
+        protocol["seed_offset"] = offset
+    return protocol
+
+
 class Oracle:
     """Reveals hidden labels and counts every reveal (one reveal = one expensive calculation)."""
 
@@ -66,6 +102,10 @@ class Oracle:
     def reveal(self, material_ids: list[str]) -> list[float]:
         self.calls += len(material_ids)
         return [self._labels[m] for m in material_ids]
+
+
+def _hash_indices(indices) -> str:
+    return hashlib.sha256(",".join(map(str, sorted(int(i) for i in indices))).encode()).hexdigest()[:12]
 
 
 def _select_batch(scores, candidates, families, batch_size, diversity):
@@ -90,10 +130,11 @@ def _select_batch(scores, candidates, families, batch_size, diversity):
     return chosen
 
 
-def _run_arm(spec, X, families, ids, oracle, initial_idx, seed):
+def _run_arm(spec, X, families, ids, oracle, initial_idx, seed, protocol=None):
+    protocol = protocol or PROTOCOL
     rng = np.random.default_rng(10_000 + seed)
     n = len(ids)
-    total = PROTOCOL["initial_size"] + PROTOCOL["budget"]
+    total = protocol["initial_size"] + protocol["budget"]
     labeled = [int(i) for i in initial_idx]
     y = oracle.reveal([ids[i] for i in labeled])
     snapshots = [list(labeled)]
@@ -101,12 +142,12 @@ def _run_arm(spec, X, families, ids, oracle, initial_idx, seed):
         mask = np.ones(n, dtype=bool)
         mask[labeled] = False
         candidates = np.flatnonzero(mask)
-        batch_size = min(PROTOCOL["batch_size"], total - len(labeled))
+        batch_size = min(protocol["batch_size"], total - len(labeled))
         if spec["acquisition"] == "random":
             batch = [int(i) for i in rng.choice(candidates, size=batch_size, replace=False)]
         else:
             model = RandomForestRegressor(
-                n_estimators=PROTOCOL["n_estimators"], min_samples_leaf=2, random_state=seed, n_jobs=-1
+                n_estimators=protocol["n_estimators"], min_samples_leaf=2, random_state=seed, n_jobs=-1
             )
             model.fit(X[labeled], np.asarray(y))
             per_tree = np.stack([tree.predict(X[candidates]) for tree in model.estimators_])
@@ -135,6 +176,17 @@ def _bootstrap_ci(values, n_boot=5000, seed=0, level=0.95):
     return [float(np.percentile(means, tail)), float(np.percentile(means, 100.0 - tail))]
 
 
+def _calls_to(curve, level):
+    for calls, recall in curve:
+        if recall >= level:
+            return calls
+    return None
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _secondary_checks(per_seed):
     c, b = per_seed["C_crucible"], per_seed["B_baseline_ei"]
     strata = {}
@@ -150,17 +202,6 @@ def _secondary_checks(per_seed):
         "mean_distinct_element_families_among_top_hits": diversity,
         "diversity_note": "Proxy for the preregistered anion / light-element group check: number of distinct element families (unique element sets) among the top-5% hits each arm found. Declared deviation.",
     }
-
-
-def _calls_to(curve, level):
-    for calls, recall in curve:
-        if recall >= level:
-            return calls
-    return None
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _plot(curves: pd.DataFrame, summary: dict, path: Path) -> None:
@@ -179,16 +220,17 @@ def _plot(curves: pd.DataFrame, summary: dict, path: Path) -> None:
     ax.plot(xs, xs / summary["n_candidates"], "k--", linewidth=1, label="random (analytic)")
     ax.set_xlabel("Oracle calls (expensive phonon calculations)")
     ax.set_ylabel(f"Recall of the top {summary['top_set_size']} materials")
-    ax.set_title(f"CRUCIBLE matched-budget campaign ({summary['protocol']['n_seeds']} seeds, 10-90% band)")
+    ax.set_title(f"{summary['run_id']}: matched-budget campaign ({summary['protocol']['n_seeds']} seeds, 10-90% band)")
     ax.legend()
     fig.tight_layout()
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
 
-def run_campaign(candidate_spec: dict, run_id: str) -> dict:
+def run_campaign(candidate_spec: dict, run_id: str, protocol_overrides: dict | None = None) -> dict:
     started = time.time()
     candidate = validate_spec(candidate_spec)
+    protocol = effective_protocol(protocol_overrides)
     pool = pd.read_csv(POOL_PATH)
     feature_sets = json.loads(FEATURE_SETS_PATH.read_text())
     labels_df = pd.read_csv(LABELS_PATH)
@@ -199,7 +241,7 @@ def run_campaign(candidate_spec: dict, run_id: str) -> dict:
 
     # Ground truth is used ONLY to score recall, never to make selection decisions.
     truth = np.array([labels[m] for m in ids])
-    k = max(1, int(round(PROTOCOL["top_fraction"] * n)))
+    k = max(1, int(round(protocol["top_fraction"] * n)))
     top_set = set(np.argsort(-truth)[:k].tolist())
 
     matrices = {name: pool[cols].to_numpy(dtype=float) for name, cols in feature_sets.items()}
@@ -209,20 +251,22 @@ def run_campaign(candidate_spec: dict, run_id: str) -> dict:
         "B_ablation_composition_only": ABLATION_SPEC,
         "C_crucible": candidate,
     }
+    seeds = list(range(protocol["seed_offset"], protocol["seed_offset"] + protocol["n_seeds"]))
     per_seed = {arm: [] for arm in arms}
     curve_rows = []
     initial_hashes = []
     total_calls = 0
-    for seed in range(PROTOCOL["n_seeds"]):
-        initial = np.random.default_rng(seed).choice(n, size=PROTOCOL["initial_size"], replace=False)
-        initial_hashes.append(hashlib.sha256(",".join(map(str, sorted(initial.tolist()))).encode()).hexdigest()[:12])
+    for seed in seeds:
+        initial = np.random.default_rng(seed).choice(n, size=protocol["initial_size"], replace=False)
+        initial_hashes.append(_hash_indices(initial))
         for arm, spec in arms.items():
             oracle = Oracle(labels)
-            snapshots = _run_arm(spec, matrices[spec["feature_set"]], families, ids, oracle, initial, seed)
+            snapshots = _run_arm(spec, matrices[spec["feature_set"]], families, ids, oracle, initial, seed, protocol)
             curve = [(len(s), len(top_set.intersection(s)) / k) for s in snapshots]
             total_calls += oracle.calls
             per_seed[arm].append({
                 "seed": seed,
+                "initial_set_hash": _hash_indices(snapshots[0]),
                 "final_recall": curve[-1][1],
                 "calls_to_50pct": _calls_to(curve, 0.5),
                 "oracle_calls": oracle.calls,
@@ -232,6 +276,10 @@ def run_campaign(candidate_spec: dict, run_id: str) -> dict:
                 "distinct_families_among_hits": len({families[i] for i in top_set.intersection(snapshots[-1])}),
             })
             curve_rows += [{"arm": arm, "seed": seed, "oracle_calls": c, "recall": r} for c, r in curve]
+
+    pairing_verified = all(
+        rows[i]["initial_set_hash"] == initial_hashes[i] for rows in per_seed.values() for i in range(len(seeds))
+    )
 
     arm_summary = {}
     for arm, rows in per_seed.items():
@@ -268,14 +316,16 @@ def run_campaign(candidate_spec: dict, run_id: str) -> dict:
 
     b_med = arm_summary["B_baseline_ei"]["median_calls_to_50pct"]
     c_med = arm_summary["C_crucible"]["median_calls_to_50pct"]
-    total_budget = PROTOCOL["initial_size"] + PROTOCOL["budget"]
+    total_budget = protocol["initial_size"] + protocol["budget"]
     summary = {
         "run_id": run_id,
         "dataset": "matbench_phonons (Petretto et al. 2018; Matbench v0.1)",
         "target": "last phonon DOS peak frequency (cm^-1)",
         "n_candidates": n,
         "top_set_size": k,
-        "protocol": PROTOCOL,
+        "protocol": protocol,
+        "protocol_overrides": protocol_overrides or {},
+        "seeds": seeds,
         "random_analytic": {
             "expected_recall_at_budget": total_budget / n,
             "expected_calls_to_50pct": random_calls_to_50,
@@ -292,7 +342,8 @@ def run_campaign(candidate_spec: dict, run_id: str) -> dict:
         "speedup_vs_random_calls_to_50pct": {a: speedup_vs_random(a) for a in arms if a != "A_random"},
         "C_vs_B_calls_to_50pct_ratio": (b_med / c_med) if (b_med and c_med) else None,
         "pairing_check": {
-            "method": "By construction: each seed draws one initial labeled set, reused unchanged by every arm in that seed.",
+            "verified": pairing_verified,
+            "method": "Each seed draws one initial labeled set; the hash of every arm's starting set is compared with it.",
             "initial_set_hash_per_seed": initial_hashes,
         },
         "total_oracle_calls_simulated": total_calls,

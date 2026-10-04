@@ -1,4 +1,4 @@
-"""Self-test of run_campaign on a tiny protocol. Prints only field names and deletes its own output."""
+"""Self-test of run_campaign on a tiny protocol. Prints only field names and checks; deletes its output."""
 import shutil
 import sys
 from pathlib import Path
@@ -13,5 +13,11 @@ summary = campaign.run_campaign(
 )
 shutil.rmtree(campaign.RESULTS_DIR / "_selftest")
 print("ok. Summary fields:", sorted(summary.keys()))
-print("Comparisons:", sorted(summary["comparisons"].keys()))
-print("Secondary checks:", sorted(summary["secondary_checks"].keys()))
+print("Pairing verified:", summary["pairing_check"]["verified"])
+p = campaign.effective_protocol({"budget": 60, "n_seeds": 20, "seed_offset": 100})
+print("Valid override accepted:", {k: p[k] for k in ("budget", "n_seeds", "seed_offset")})
+try:
+    campaign.effective_protocol({"budget": 7})
+    print("ERROR: invalid override was accepted")
+except ValueError:
+    print("Invalid override rejected: ok")

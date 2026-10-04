@@ -73,6 +73,7 @@ def pool_summary() -> dict:
         "n_element_families": int(pool["element_family"].nunique()),
         "largest_element_families": pool["element_family"].value_counts().head(8).to_dict(),
         "protocol_fixed_for_all_arms": campaign.PROTOCOL,
+        "protocol_override_limits": campaign.PROTOCOL_OVERRIDE_LIMITS,
         "allowed_spec_values": campaign.ALLOWED_SPEC_VALUES,
         "kappa_range": [0.0, 5.0],
         "arms_run_automatically": {
@@ -88,6 +89,9 @@ def read_ledger(last_n: int = 40) -> dict:
     ok, msg = verify_chain(LEDGER)
     keys = ("id", "type", "agent", "label", "text", "citations", "parents", "confidence", "payload", "timestamp")
     entries = [{k: e[k] for k in keys if k in e} for e in read_entries(LEDGER)]
+    for e in entries:
+        if e.get("type") == "result" and "payload" in e:
+            e["payload"] = {"note": "Full numbers omitted here; call get_results with the run id."}
     return {
         "chain": msg if ok else f"BROKEN: {msg}",
         "total_entries": len(entries),
@@ -121,7 +125,7 @@ def write_ledger_entry(
             if not isinstance(payload, dict) or "spec" not in payload:
                 return {"error": "A preregistration payload must be a JSON object with a 'spec' key."}
             payload["spec"] = campaign.validate_spec(payload["spec"])
-            payload["protocol"] = campaign.PROTOCOL
+            payload["protocol"] = campaign.effective_protocol(payload.get("protocol_overrides"))
         entry = append_entry(
             entry_id=entry_id, entry_type=entry_type, agent=agent, label=label, text=text,
             citations=citations, parents=parents, confidence=confidence, payload=payload, path=LEDGER,
@@ -152,7 +156,7 @@ def run_campaign(prereg_id: str) -> dict:
     if any(e.get("id") == run_id for e in entries):
         return {"error": f"{prereg_id} was already executed. A preregistered experiment runs once."}
 
-    summary = campaign.run_campaign(prereg["payload"]["spec"], run_id)
+    summary = campaign.run_campaign(prereg["payload"]["spec"], run_id, prereg["payload"].get("protocol_overrides"))
     compact = _compact(summary)
     append_entry(
         entry_id=run_id, entry_type="run", agent="Runner", label="RESULT",
