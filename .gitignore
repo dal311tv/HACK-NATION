@@ -16,3 +16,9 @@ data/cache/
 # OS files
 .DS_Store
 Thumbs.db
+
+# PHP runtime, installers and binaries (UI machine)
+ui/runtime/
+*.zip
+*.exe
+*.dll
