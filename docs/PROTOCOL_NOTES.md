@@ -16,3 +16,9 @@ The preregistration specifies analyses the campaign engine did not yet compute. 
 | Distinct anion / light-element groups among top-5% hits | **Deviation:** measured as distinct element families among top-5% hits (proxy) |
 
 The full analysis path was verified with `scripts/selftest_campaign.py`, which runs a reduced protocol, prints only field names, and deletes its output.
+
+## Reproducibility check after the Loop 2 code change
+
+Before Loop 2, the campaign engine was extended with human-set protocol override limits and an explicit pairing verification.
+`scripts/reproduce_run.py --prereg prereg-001` re-ran prereg-001 from its preregistered spec with the new code and compared all 40 arm-seed results with the original run.
+Observed: maximum absolute difference 0.000000. REPRODUCED EXACTLY.

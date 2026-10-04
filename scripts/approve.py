@@ -12,6 +12,7 @@ LEDGER = "ledger/ledger.jsonl"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--prereg", required=True)
+parser.add_argument("--note", default="", help="Clarification recorded with the approval")
 args = parser.parse_args()
 
 ok, msg = verify_chain(LEDGER)
@@ -30,7 +31,7 @@ if answer.strip() != "YES":
     sys.exit("Not approved.")
 entry = append_entry(
     entry_id=f"appr-{args.prereg}", entry_type="approval", agent="Human", label="INFERENCE",
-    text=f"Human approval of {args.prereg} after reviewing the plan, spec and decision rules.",
+    text=(f"Human approval of {args.prereg} after reviewing the plan, spec and decision rules. " + args.note).strip(),
     parents=[args.prereg], path=LEDGER,
 )
 print(f"Approved: {entry['id']}")

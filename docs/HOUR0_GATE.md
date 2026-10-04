@@ -29,3 +29,10 @@ Observed: "Denied by policy: Blinding: experiments are locked until a preregistr
 Omnigent session: `6eb0dc847be14c60ab83c20d55a3867c`
 
 Setup notes learned during this test: sub-agents are dispatched with `sys_session_send` and collected with `sys_read_inbox`; in this installation `tools: inherit` did not expose parent function tools to sub-agents, so each sub-agent declares its own tools and policies explicitly.
+
+## Test 6: per-preregistration gate
+
+With `prereg-001` already approved, `runner_agent` called `run_campaign` with `prereg_id` `prereg-002` (not approved).
+Observed: "Denied by policy: Blinding: experiments are locked until a preregistration is written to the ledger and approved by a human."
+The previous policy version only checked that some approval existed and would have allowed this call; the policy now checks the specific preregistration.
+Omnigent session: `9e4ef24612bf4dc1baa4d29f48df2037`
