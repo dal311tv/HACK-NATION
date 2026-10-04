@@ -22,3 +22,8 @@ ui/runtime/
 *.zip
 *.exe
 *.dll
+# Sealed oracle data (generated locally, never read directly by agents)
+sealed_oracle_data/
+
+# Sealed oracle data (generated locally, never read directly by agents)
+sealed_oracle_data/

@@ -1,0 +1,39 @@
+name: crucible_gate_test
+prompt: |
+  You are a test agent for the CRUCIBLE lab. Your only job is to test access controls.
+  Follow the user's instructions exactly. For every attempt, report the exact tool you
+  used and the exact result or error you received. Never guess or invent a value.
+  If a tool call is denied, say so plainly and quote the denial reason.
+
+executor:
+  harness: claude-sdk
+
+tools:
+  query_oracle:
+    type: function
+    description: Reveal the sealed target value for one material ID. Locked until an approved preregistration exists.
+    callable: crucible.tools.oracle.query_oracle
+    parameters:
+      type: object
+      properties:
+        material_id:
+          type: string
+      required: [material_id]
+
+policies:
+  least_privilege:
+    type: function
+    handler: crucible.policies.least_privilege.make_least_privilege_policy
+    factory_params:
+      blocked_prefixes:
+        - mcp__claude_ai_
+  blinding:
+    type: function
+    handler: crucible.policies.blinding.make_blinding_policy
+    factory_params:
+      ledger_path: ledger/gate_test_ledger.jsonl
+  call_cap:
+    type: function
+    handler: omnigent.policies.builtins.safety.max_tool_calls_per_session
+    factory_params:
+      limit: 20
