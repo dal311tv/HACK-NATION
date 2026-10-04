@@ -4,3 +4,7 @@
 {"timestamp": "2026-10-04T08:15:00Z", "tool": "read_ledger", "arguments": "{\"last_n\": 1}", "actor": "{'run_as': 'local'}"}
 {"timestamp": "2026-10-04T08:16:03Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
 {"timestamp": "2026-10-04T08:16:03Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T08:46:43Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T08:46:44Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T08:46:50Z", "tool": "read_ledger", "arguments": "{\"last_n\": 100}", "actor": "{'run_as': 'local'}"}
+{"timestamp": "2026-10-04T08:46:54Z", "tool": "read_ledger", "arguments": "{\"last_n\": 10}", "actor": "{'run_as': 'local'}"}

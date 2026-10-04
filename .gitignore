@@ -30,3 +30,6 @@ sealed_oracle_data/
 
 # Kill switch file (created by a human to stop all agents)
 STOP
+
+# Lab Console run output (full agent logs, local only)
+logs/console_runs/

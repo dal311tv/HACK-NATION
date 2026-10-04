@@ -48,6 +48,20 @@ No human baseline was timed, so no process speed-up ratio is claimed.
 
 ---
 
+## A governed agent: the seven questions
+
+| Question | CRUCIBLE's answer | Evidence |
+|---|---|---|
+| **Who is the human owner?** | Jair de Jesus Martinez Pineda is accountable for the project. Every approval records the name of the person who signed it (`payload.approver`). | `scripts/approve.py`, `crucible/approval.py`, approval entries in the ledger |
+| **Where does a human decide?** | Before any expensive calculation: each preregistration must be approved by a named human, and only that preregistration is unlocked. Humans also set the limits within which agents may change the protocol. | Tests 1, 3, 5 and 6 |
+| **What can it touch?** | Each agent has only its own tools, with no file or shell access. Sealed data is never exposed. Credentials never appear in prompts: the Claude login is handled by Omnigent setup, and API keys live only in environment variables or hidden input. Personal account connectors were found by a test and removed. | Tests 2 and 4 |
+| **Can it be stopped?** | Yes, tested: a `STOP` file makes Omnigent deny every agent action, in the PI and in every sub-agent; deleting it resumes the lab. The Lab Console's "Stop all agents" button creates `STOP` and terminates the active run and its child processes. | Test 7, `scripts/lab_console.py` |
+| **How is it evaluated?** | The process, not only the result: adversarial access tests, preregistered decision rules, verified pairing, floor and ceiling controls, and exact reproduction of both runs from the ledger. | `docs/HOUR0_GATE.md`, `docs/PROTOCOL_NOTES.md`, `tests/` |
+| **What value does it create?** | A scientist with a budget of 120 expensive calculations finds about 45 of the 63 best materials, instead of about 6 with random screening: roughly 8x more useful candidates for the same spend (Loop 2). Most of that gain comes from ML-guided screening; what CRUCIBLE adds is a result the scientist can defend: who approved it, on what evidence, and under which rules. | Loop 2 results |
+| **What did it record?** | A hash-chained ledger of every decision, an audit log of every attempted tool call, a log of every console action, run records with data hashes, and Omnigent session transcripts. | `ledger/ledger.jsonl`, `logs/tool_audit.jsonl`, `logs/console_actions.jsonl`, `results/` |
+
+---
+
 ## What makes it different: the scientific method enforced as policy
 
 Most agent systems ask the model to behave. CRUCIBLE makes the rules structural. Every control below was tested adversarially; see [`docs/HOUR0_GATE.md`](docs/HOUR0_GATE.md).
