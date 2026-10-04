@@ -68,3 +68,13 @@
 {"timestamp": "2026-10-04T09:21:07Z", "tool": "write_ledger_entry", "arguments": "{\"entry_id\": \"prereg-003\", \"entry_type\": \"preregistration\", \"agent\": \"Designer\", \"label\": \"INFERENCE\", \"text\": \"PREREGISTRATION prereg-003 (chosen design d-005; rejected d-006). STATUS: PROPOSED, NOT APPROVED. Only a human may approve it, outside this session. Nothing has been run.\\n\\nSPEC. Arms (all on identical protocol and hash-matched initial sets):\\n- A_random: composition_structure, random.\\n- B_baseline_ei: composition_structure, RF + EI.\\n- B_ablation_composition_only: composition, RF + ", "actor": "{'run_as': 'local'}"}
 {"timestamp": "2026-10-04T09:21:30Z", "tool": "sys_read_inbox", "arguments": "{}", "actor": "{'run_as': 'local'}"}
 {"timestamp": "2026-10-04T09:21:30Z", "tool": "read_ledger", "arguments": "{\"last_n\": 8}", "actor": "{'run_as': 'local'}"}
+{"timestamp": "2026-10-04T11:09:40Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T11:09:40Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T11:10:16Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T11:10:16Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T11:10:48Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T11:10:49Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T11:11:09Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T11:11:09Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T11:12:40Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T11:12:41Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
