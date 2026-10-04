@@ -27,3 +27,6 @@ sealed_oracle_data/
 
 # Sealed oracle data (generated locally, never read directly by agents)
 sealed_oracle_data/
+
+# Kill switch file (created by a human to stop all agents)
+STOP

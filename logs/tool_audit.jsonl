@@ -1,0 +1,6 @@
+{"timestamp": "2026-10-04T08:14:04Z", "tool": "mcp__omnigent__read_ledger", "arguments": "{\"last_n\": 1}", "actor": ""}
+{"timestamp": "2026-10-04T08:14:54Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T08:14:55Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T08:15:00Z", "tool": "read_ledger", "arguments": "{\"last_n\": 1}", "actor": "{'run_as': 'local'}"}
+{"timestamp": "2026-10-04T08:16:03Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}
+{"timestamp": "2026-10-04T08:16:03Z", "tool": "sys_agent_start", "arguments": "{\"agent_name\": \"crucible_lab\", \"harness\": \"claude-sdk\", \"sandbox\": null}", "actor": ""}

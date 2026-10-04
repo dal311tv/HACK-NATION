@@ -26,12 +26,16 @@ if prereg is None:
 print("\n=== PREREGISTRATION ===")
 print(prereg["text"])
 print(json.dumps(prereg.get("payload"), indent=2))
-answer = input("\nApprove this preregistration? Type YES to approve: ")
+approver = input("\nYour full name (the accountable human owner of this decision): ").strip()
+if not approver:
+    sys.exit("Not approved: an accountable human must be named.")
+answer = input("Approve this preregistration? Type YES to approve: ")
 if answer.strip() != "YES":
     sys.exit("Not approved.")
 entry = append_entry(
     entry_id=f"appr-{args.prereg}", entry_type="approval", agent="Human", label="INFERENCE",
-    text=(f"Human approval of {args.prereg} after reviewing the plan, spec and decision rules. " + args.note).strip(),
+    text=(f"Human approval of {args.prereg} by {approver} after reviewing the plan, spec and decision rules. " + args.note).strip(),
+    payload={"approver": approver},
     parents=[args.prereg], path=LEDGER,
 )
 print(f"Approved: {entry['id']}")

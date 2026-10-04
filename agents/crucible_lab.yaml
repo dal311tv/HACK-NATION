@@ -109,6 +109,16 @@ tools:
   evidence_agent:
     type: agent
     policies:
+      audit_log:
+        type: function
+        handler: crucible.policies.governance.make_audit_log_policy
+        factory_params:
+          log_path: logs/tool_audit.jsonl
+      kill_switch:
+        type: function
+        handler: crucible.policies.governance.make_kill_switch_policy
+        factory_params:
+          stop_file: STOP
       least_privilege:
         type: function
         handler: crucible.policies.least_privilege.make_least_privilege_policy
@@ -183,6 +193,16 @@ tools:
   hypothesis_agent:
     type: agent
     policies:
+      audit_log:
+        type: function
+        handler: crucible.policies.governance.make_audit_log_policy
+        factory_params:
+          log_path: logs/tool_audit.jsonl
+      kill_switch:
+        type: function
+        handler: crucible.policies.governance.make_kill_switch_policy
+        factory_params:
+          stop_file: STOP
       least_privilege:
         type: function
         handler: crucible.policies.least_privilege.make_least_privilege_policy
@@ -251,6 +271,16 @@ tools:
   critic_agent:
     type: agent
     policies:
+      audit_log:
+        type: function
+        handler: crucible.policies.governance.make_audit_log_policy
+        factory_params:
+          log_path: logs/tool_audit.jsonl
+      kill_switch:
+        type: function
+        handler: crucible.policies.governance.make_kill_switch_policy
+        factory_params:
+          stop_file: STOP
       least_privilege:
         type: function
         handler: crucible.policies.least_privilege.make_least_privilege_policy
@@ -320,6 +350,16 @@ tools:
   designer_agent:
     type: agent
     policies:
+      audit_log:
+        type: function
+        handler: crucible.policies.governance.make_audit_log_policy
+        factory_params:
+          log_path: logs/tool_audit.jsonl
+      kill_switch:
+        type: function
+        handler: crucible.policies.governance.make_kill_switch_policy
+        factory_params:
+          stop_file: STOP
       least_privilege:
         type: function
         handler: crucible.policies.least_privilege.make_least_privilege_policy
@@ -407,6 +447,16 @@ tools:
   runner_agent:
     type: agent
     policies:
+      audit_log:
+        type: function
+        handler: crucible.policies.governance.make_audit_log_policy
+        factory_params:
+          log_path: logs/tool_audit.jsonl
+      kill_switch:
+        type: function
+        handler: crucible.policies.governance.make_kill_switch_policy
+        factory_params:
+          stop_file: STOP
       least_privilege:
         type: function
         handler: crucible.policies.least_privilege.make_least_privilege_policy
@@ -453,6 +503,16 @@ tools:
   decision_agent:
     type: agent
     policies:
+      audit_log:
+        type: function
+        handler: crucible.policies.governance.make_audit_log_policy
+        factory_params:
+          log_path: logs/tool_audit.jsonl
+      kill_switch:
+        type: function
+        handler: crucible.policies.governance.make_kill_switch_policy
+        factory_params:
+          stop_file: STOP
       least_privilege:
         type: function
         handler: crucible.policies.least_privilege.make_least_privilege_policy
@@ -524,6 +584,16 @@ tools:
           required: [entry_id, entry_type, agent, label, text]
 
 policies:
+  audit_log:
+    type: function
+    handler: crucible.policies.governance.make_audit_log_policy
+    factory_params:
+      log_path: logs/tool_audit.jsonl
+  kill_switch:
+    type: function
+    handler: crucible.policies.governance.make_kill_switch_policy
+    factory_params:
+      stop_file: STOP
   least_privilege:
     type: function
     handler: crucible.policies.least_privilege.make_least_privilege_policy
