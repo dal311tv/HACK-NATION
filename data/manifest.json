@@ -1,0 +1,13 @@
+{
+  "dataset": "matbench_phonons via matminer.datasets.load_dataset",
+  "data_reference": "Petretto et al., Scientific Data 5, 180065 (2018). doi:10.1038/sdata.2018.65",
+  "benchmark_reference": "Dunn et al., npj Computational Materials 6, 138 (2020). doi:10.1038/s41524-020-00406-3",
+  "target": "last phdos peak (cm^-1), sealed",
+  "n_candidates": 1265,
+  "n_composition_features": 123,
+  "n_structure_features": 4,
+  "sha256": {
+    "data/pool_features.csv": "3ff8d718b399991ed19184818f26da89b35ea3f564d3b568c6b9b7bb5f70e6cf",
+    "sealed_oracle_data/phonons_labels.csv": "cb86554c068fefb0aa0da6081fe06c706b04a2757e95d68e3128f884b7a97685"
+  }
+}

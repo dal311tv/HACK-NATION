@@ -1,7 +1,7 @@
 """CRUCIBLE blinding policy for Omnigent.
 
-Rule 1: the oracle tool is DENIED until the ledger contains a preregistration
-        entry AND a human approval entry that points to it.
+Rule 1: gated tools (the oracle and the campaign runner) are DENIED until the ledger
+        contains a preregistration AND a human approval that points to it.
 Rule 2: any tool call whose arguments mention the sealed data folder is DENIED.
 The policy fails closed: an unreadable or tampered ledger counts as "not approved".
 """
@@ -32,10 +32,11 @@ def _has_approved_preregistration(ledger_path) -> bool:
 def make_blinding_policy(
     ledger_path: str = "ledger/ledger.jsonl",
     sealed_marker: str = "sealed_oracle_data",
-    oracle_tool: str = "query_oracle",
+    gated_tools: list[str] | None = None,
 ):
     ledger = resolve_path(ledger_path)
     marker = sealed_marker.lower()
+    gated = tuple(gated_tools or ["query_oracle", "run_campaign"])
 
     def evaluate(event):
         if event.get("type") != "tool_call":
@@ -44,21 +45,18 @@ def make_blinding_policy(
         name = str(data.get("name") or event.get("target") or "")
         arguments = data.get("arguments") or {}
 
-        if name.endswith(oracle_tool):
+        if name.endswith(gated):
             if _has_approved_preregistration(ledger):
                 return {"result": "ALLOW"}
             return {
                 "result": "DENY",
-                "reason": (
-                    "Blinding: the oracle is locked until a preregistration is written "
-                    "to the ledger and approved by a human."
-                ),
+                "reason": "Blinding: experiments are locked until a preregistration is written to the ledger and approved by a human.",
             }
 
         if marker in json.dumps(arguments, default=str).lower():
             return {
                 "result": "DENY",
-                "reason": "Blinding: direct access to sealed data is forbidden. Use the oracle tool after approval.",
+                "reason": "Blinding: direct access to sealed data is forbidden.",
             }
         return None
 

@@ -1,0 +1,10 @@
+name: subagent_probe
+prompt: You are a test supervisor. Follow the user's instructions exactly and report raw tool outputs.
+
+executor:
+  harness: claude-sdk
+
+tools:
+  echo_agent:
+    type: agent
+    prompt: Reply with exactly the text "sub-agent ok" and nothing else.

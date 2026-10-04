@@ -1,0 +1,524 @@
+name: crucible_lab
+prompt: |
+  You are the Principal Investigator (PI) of CRUCIBLE, a governed computational discovery lab.
+
+  Research question (set by the human scientist):
+  Under a fixed, preregistered budget of expensive phonon calculations (oracle calls), can an
+  evidence-informed, agent-designed screening campaign recover more of the top 5% materials by
+  last phonon DOS peak frequency than (a) random screening and (b) a standard fixed Bayesian
+  optimization pipeline (random forest + expected improvement, all descriptors), under matched
+  conditions? Secondary: does crystal structure add signal beyond composition?
+
+  How to delegate (Omnigent mechanics):
+  - Call sys_agent_list once at the start to confirm the specialists are registered.
+  - Dispatch a specialist with sys_session_send, setting agent to the specialist name
+    (for example evidence_agent) and giving it a clear task message.
+  - Wait for it to finish, then collect its output with sys_read_inbox before the next step.
+  - Run the steps in order. Never skip a specialist and never do its work yourself.
+
+  How you work:
+  - You coordinate. Delegate each step to the specialist that owns it. Do not do their work.
+  - The ledger is the single source of truth. Specialists write to it with write_ledger_entry
+    and link parents.
+  - Never invent citations, data or results. Agent-generated ideas are HYPOTHESIS or INFERENCE.
+  - Nobody in this session can approve anything. Only a human approves, outside the session.
+
+  PHASE 1 (the user says "Phase 1"):
+  1. evidence_agent  2. hypothesis_agent  3. critic_agent  4. designer_agent
+  5. Call read_ledger, then reply with the preregistration id, the chosen spec, and this
+     instruction for the human: uv run --python 3.12 scripts/approve.py --prereg <id>
+     Then stop.
+
+  PHASE 2 (the user says "Phase 2" followed by a preregistration id):
+  1. runner_agent: execute the approved preregistration once.
+  2. decision_agent: interpret the result and decide the next experiment.
+  3. Reply with five lines: result, decision rule that fired, updated confidence per
+     hypothesis, next experiment, main limitation.
+
+executor:
+  harness: claude-sdk
+
+tools:
+  search_literature:
+    type: function
+    description: Search OpenAlex for scholarly works. Returns titles, DOIs, years and abstract excerpts.
+    callable: crucible.tools.lab_tools.search_literature
+    parameters:
+      type: object
+      properties:
+        query: {type: string}
+        max_results: {type: integer}
+      required: [query]
+  pool_summary:
+    type: function
+    description: Describe the candidate pool and the allowed experiment settings. Never reveals target values.
+    callable: crucible.tools.lab_tools.pool_summary
+    parameters:
+      type: object
+      properties: {}
+  read_ledger:
+    type: function
+    description: Read recent ledger entries and the integrity status of the hash chain.
+    callable: crucible.tools.lab_tools.read_ledger
+    parameters:
+      type: object
+      properties:
+        last_n: {type: integer}
+  write_ledger_entry:
+    type: function
+    description: Append one entry to the research ledger. Pass payload as a JSON string in payload_json.
+    callable: crucible.tools.lab_tools.write_ledger_entry
+    parameters:
+      type: object
+      properties:
+        entry_id: {type: string}
+        entry_type: {type: string, enum: [evidence, hypothesis, critique, experiment_design, preregistration, decision, prediction]}
+        agent: {type: string}
+        label: {type: string, enum: [FACT, EVIDENCE, INFERENCE, HYPOTHESIS, RESULT, UNCERTAINTY]}
+        text: {type: string}
+        citations: {type: array, items: {type: string}}
+        parents: {type: array, items: {type: string}}
+        confidence: {type: number}
+        payload_json: {type: string}
+      required: [entry_id, entry_type, agent, label, text]
+  run_campaign:
+    type: function
+    description: Execute a human-approved preregistered campaign exactly once. Locked until approval.
+    callable: crucible.tools.lab_tools.run_campaign
+    parameters:
+      type: object
+      properties:
+        prereg_id: {type: string}
+      required: [prereg_id]
+  get_results:
+    type: function
+    description: Read the stored summary of a completed run.
+    callable: crucible.tools.lab_tools.get_results
+    parameters:
+      type: object
+      properties:
+        run_id: {type: string}
+      required: [run_id]
+
+  evidence_agent:
+    type: agent
+    policies:
+      least_privilege:
+        type: function
+        handler: crucible.policies.least_privilege.make_least_privilege_policy
+        factory_params:
+          blocked_prefixes:
+            - mcp__claude_ai_
+      blinding:
+        type: function
+        handler: crucible.policies.blinding.make_blinding_policy
+        factory_params:
+          ledger_path: ledger/ledger.jsonl
+          gated_tools:
+            - query_oracle
+            - run_campaign
+      call_cap:
+        type: function
+        handler: omnigent.policies.builtins.safety.max_tool_calls_per_session
+        factory_params:
+          limit: 300
+    description: Finds and records cited evidence. Owns the decision of what is known and from which source.
+    prompt: |
+      You are the Evidence agent of CRUCIBLE. You own one decision: what is known, and from which source.
+      1. Call read_ledger to avoid duplicate ids.
+      2. Run 3 to 5 searches with search_literature covering: physical determinants of high phonon
+         frequencies (bond stiffness, atomic mass); the high-throughput DFPT phonon database behind the
+         data (Petretto et al.); active learning or Bayesian optimization for materials screening under a
+         limited budget; known failure modes of active learning (cold start, low diversity).
+      3. Write 4 to 8 entries: entry_type "evidence", label "EVIDENCE", agent "Evidence", ids ev-001,
+         ev-002, ... Each states ONE claim in your own words that is directly supported by the returned
+         title or abstract excerpt, and cites its DOI (or OpenAlex id if no DOI). Never claim more than
+         the abstract says.
+      4. Write one entry: entry_type "evidence", label "UNCERTAINTY", id ev-gaps, listing what the
+         literature you found does NOT establish.
+      Finish by listing the ids you wrote.
+    tools:
+      search_literature:
+        type: function
+        description: Search OpenAlex for scholarly works. Returns titles, DOIs, years and abstract excerpts.
+        callable: crucible.tools.lab_tools.search_literature
+        parameters:
+          type: object
+          properties:
+            query: {type: string}
+            max_results: {type: integer}
+          required: [query]
+      read_ledger:
+        type: function
+        description: Read recent ledger entries and the integrity status of the hash chain.
+        callable: crucible.tools.lab_tools.read_ledger
+        parameters:
+          type: object
+          properties:
+            last_n: {type: integer}
+      write_ledger_entry:
+        type: function
+        description: Append one entry to the research ledger. Pass payload as a JSON string in payload_json.
+        callable: crucible.tools.lab_tools.write_ledger_entry
+        parameters:
+          type: object
+          properties:
+            entry_id: {type: string}
+            entry_type: {type: string, enum: [evidence, hypothesis, critique, experiment_design, preregistration, decision, prediction]}
+            agent: {type: string}
+            label: {type: string, enum: [FACT, EVIDENCE, INFERENCE, HYPOTHESIS, RESULT, UNCERTAINTY]}
+            text: {type: string}
+            citations: {type: array, items: {type: string}}
+            parents: {type: array, items: {type: string}}
+            confidence: {type: number}
+            payload_json: {type: string}
+          required: [entry_id, entry_type, agent, label, text]
+
+  hypothesis_agent:
+    type: agent
+    policies:
+      least_privilege:
+        type: function
+        handler: crucible.policies.least_privilege.make_least_privilege_policy
+        factory_params:
+          blocked_prefixes:
+            - mcp__claude_ai_
+      blinding:
+        type: function
+        handler: crucible.policies.blinding.make_blinding_policy
+        factory_params:
+          ledger_path: ledger/ledger.jsonl
+          gated_tools:
+            - query_oracle
+            - run_campaign
+      call_cap:
+        type: function
+        handler: omnigent.policies.builtins.safety.max_tool_calls_per_session
+        factory_params:
+          limit: 300
+    description: Generates competing, testable hypotheses linked to evidence.
+    prompt: |
+      You are the Hypothesis agent of CRUCIBLE. You own one decision: which competing, testable
+      hypotheses the lab holds. Call read_ledger and pool_summary first.
+      Write exactly 3 entries: entry_type "hypothesis", label "HYPOTHESIS", agent "Hypothesis",
+      ids h-001, h-002, h-003:
+      - one about descriptor families (composition only vs composition + structure),
+      - one about acquisition strategy (uncertainty-aware or diversity-aware vs standard expected improvement),
+      - one competing or null hypothesis that would make the agent-designed strategy unnecessary.
+      Each states the claim, the observable it predicts in this protocol (top-5% recall at the fixed
+      budget, or oracle calls to 50% recall), a prior confidence 0-1 in the confidence field, and
+      parents = the evidence ids it relies on. These are agent-generated and never facts.
+    tools:
+      read_ledger:
+        type: function
+        description: Read recent ledger entries and the integrity status of the hash chain.
+        callable: crucible.tools.lab_tools.read_ledger
+        parameters:
+          type: object
+          properties:
+            last_n: {type: integer}
+      pool_summary:
+        type: function
+        description: Describe the candidate pool and the allowed experiment settings. Never reveals target values.
+        callable: crucible.tools.lab_tools.pool_summary
+        parameters:
+          type: object
+          properties: {}
+      write_ledger_entry:
+        type: function
+        description: Append one entry to the research ledger. Pass payload as a JSON string in payload_json.
+        callable: crucible.tools.lab_tools.write_ledger_entry
+        parameters:
+          type: object
+          properties:
+            entry_id: {type: string}
+            entry_type: {type: string, enum: [evidence, hypothesis, critique, experiment_design, preregistration, decision, prediction]}
+            agent: {type: string}
+            label: {type: string, enum: [FACT, EVIDENCE, INFERENCE, HYPOTHESIS, RESULT, UNCERTAINTY]}
+            text: {type: string}
+            citations: {type: array, items: {type: string}}
+            parents: {type: array, items: {type: string}}
+            confidence: {type: number}
+            payload_json: {type: string}
+          required: [entry_id, entry_type, agent, label, text]
+
+  critic_agent:
+    type: agent
+    policies:
+      least_privilege:
+        type: function
+        handler: crucible.policies.least_privilege.make_least_privilege_policy
+        factory_params:
+          blocked_prefixes:
+            - mcp__claude_ai_
+      blinding:
+        type: function
+        handler: crucible.policies.blinding.make_blinding_policy
+        factory_params:
+          ledger_path: ledger/ledger.jsonl
+          gated_tools:
+            - query_oracle
+            - run_campaign
+      call_cap:
+        type: function
+        handler: omnigent.policies.builtins.safety.max_tool_calls_per_session
+        factory_params:
+          limit: 300
+    description: Attacks each hypothesis and states what would falsify it.
+    prompt: |
+      You are the Critic of CRUCIBLE. You own one decision: what would prove each hypothesis wrong, and
+      what could fool the lab. Call read_ledger. You may use search_literature for contradicting evidence.
+      For each hypothesis write one entry: entry_type "critique", label "INFERENCE", agent "Critic",
+      id c-<hypothesis id>, parents [that hypothesis id]. Include a falsification criterion in protocol
+      metrics, the main confounds, and relevant failure modes. Always consider: retrospective oracle
+      (labels were precomputed), pool censoring (unstable entries were removed from the dataset), cold
+      start with 20 initial labels, chemical-family mode collapse, and seed variance.
+      Be adversarial and specific. Do not soften criticism.
+    tools:
+      read_ledger:
+        type: function
+        description: Read recent ledger entries and the integrity status of the hash chain.
+        callable: crucible.tools.lab_tools.read_ledger
+        parameters:
+          type: object
+          properties:
+            last_n: {type: integer}
+      search_literature:
+        type: function
+        description: Search OpenAlex for scholarly works. Returns titles, DOIs, years and abstract excerpts.
+        callable: crucible.tools.lab_tools.search_literature
+        parameters:
+          type: object
+          properties:
+            query: {type: string}
+            max_results: {type: integer}
+          required: [query]
+      write_ledger_entry:
+        type: function
+        description: Append one entry to the research ledger. Pass payload as a JSON string in payload_json.
+        callable: crucible.tools.lab_tools.write_ledger_entry
+        parameters:
+          type: object
+          properties:
+            entry_id: {type: string}
+            entry_type: {type: string, enum: [evidence, hypothesis, critique, experiment_design, preregistration, decision, prediction]}
+            agent: {type: string}
+            label: {type: string, enum: [FACT, EVIDENCE, INFERENCE, HYPOTHESIS, RESULT, UNCERTAINTY]}
+            text: {type: string}
+            citations: {type: array, items: {type: string}}
+            parents: {type: array, items: {type: string}}
+            confidence: {type: number}
+            payload_json: {type: string}
+          required: [entry_id, entry_type, agent, label, text]
+
+  designer_agent:
+    type: agent
+    policies:
+      least_privilege:
+        type: function
+        handler: crucible.policies.least_privilege.make_least_privilege_policy
+        factory_params:
+          blocked_prefixes:
+            - mcp__claude_ai_
+      blinding:
+        type: function
+        handler: crucible.policies.blinding.make_blinding_policy
+        factory_params:
+          ledger_path: ledger/ledger.jsonl
+          gated_tools:
+            - query_oracle
+            - run_campaign
+      call_cap:
+        type: function
+        handler: omnigent.policies.builtins.safety.max_tool_calls_per_session
+        factory_params:
+          limit: 300
+    description: Designs at least two experiments, scores them, and writes the preregistration.
+    prompt: |
+      You are the Experiment Designer of CRUCIBLE. You own one decision: which experiment the lab
+      commits its budget to. Call read_ledger and pool_summary. The protocol (initial labels, budget,
+      batch size, seeds, top fraction) is fixed and identical for every arm. You choose only:
+      feature_set, acquisition, kappa, diversity.
+      1. Write two entries: entry_type "experiment_design", label "INFERENCE", agent "Designer", ids
+         d-001 and d-002, each with payload_json {"spec": {...}, "scores": {"expected_information_gain":
+         1-5, "scientific_relevance": 1-5, "feasibility": 1-5, "cost": 1-5, "reproducibility": 1-5,
+         "risk": 1-5}, "rationale": "...", "tests_hypotheses": [...]}, parents = the hypotheses and
+         critiques it addresses.
+      2. Choose one and write: entry_type "preregistration", id prereg-001, label "INFERENCE", agent
+         "Designer", parents [chosen design id and the hypothesis ids], payload_json {"spec": {...},
+         "chosen_design": "...", "rejected_design": "...", "why": "...", "primary_metric": "Mean paired
+         difference in final top-5% recall, C_crucible minus B_baseline_ei, across seeds, with 95%
+         bootstrap CI", "secondary_metrics": ["C vs A_random", "B_baseline_ei vs
+         B_ablation_composition_only", "median oracle calls to 50% recall"], "success_criterion": "...",
+         "decision_rules": [{"if": "...", "then": "..."}]}.
+      Decision rules must cover: C better than B (CI excludes 0), C equivalent to B, C worse than B,
+      and the structure-vs-composition outcome. You will not see any result before this is approved and run.
+    tools:
+      read_ledger:
+        type: function
+        description: Read recent ledger entries and the integrity status of the hash chain.
+        callable: crucible.tools.lab_tools.read_ledger
+        parameters:
+          type: object
+          properties:
+            last_n: {type: integer}
+      pool_summary:
+        type: function
+        description: Describe the candidate pool and the allowed experiment settings. Never reveals target values.
+        callable: crucible.tools.lab_tools.pool_summary
+        parameters:
+          type: object
+          properties: {}
+      write_ledger_entry:
+        type: function
+        description: Append one entry to the research ledger. Pass payload as a JSON string in payload_json.
+        callable: crucible.tools.lab_tools.write_ledger_entry
+        parameters:
+          type: object
+          properties:
+            entry_id: {type: string}
+            entry_type: {type: string, enum: [evidence, hypothesis, critique, experiment_design, preregistration, decision, prediction]}
+            agent: {type: string}
+            label: {type: string, enum: [FACT, EVIDENCE, INFERENCE, HYPOTHESIS, RESULT, UNCERTAINTY]}
+            text: {type: string}
+            citations: {type: array, items: {type: string}}
+            parents: {type: array, items: {type: string}}
+            confidence: {type: number}
+            payload_json: {type: string}
+          required: [entry_id, entry_type, agent, label, text]
+
+  runner_agent:
+    type: agent
+    policies:
+      least_privilege:
+        type: function
+        handler: crucible.policies.least_privilege.make_least_privilege_policy
+        factory_params:
+          blocked_prefixes:
+            - mcp__claude_ai_
+      blinding:
+        type: function
+        handler: crucible.policies.blinding.make_blinding_policy
+        factory_params:
+          ledger_path: ledger/ledger.jsonl
+          gated_tools:
+            - query_oracle
+            - run_campaign
+      call_cap:
+        type: function
+        handler: omnigent.policies.builtins.safety.max_tool_calls_per_session
+        factory_params:
+          limit: 300
+    description: Executes an approved preregistered campaign. Owns no scientific decision.
+    prompt: |
+      You are the Runner of CRUCIBLE. You own no scientific decision. Call run_campaign exactly once
+      with the preregistration id you are given. Report the returned numbers verbatim. Do not interpret
+      them. If the call is denied or returns an error, report the exact message and stop.
+    tools:
+      run_campaign:
+        type: function
+        description: Execute a human-approved preregistered campaign exactly once. Locked until approval.
+        callable: crucible.tools.lab_tools.run_campaign
+        parameters:
+          type: object
+          properties:
+            prereg_id: {type: string}
+          required: [prereg_id]
+      read_ledger:
+        type: function
+        description: Read recent ledger entries and the integrity status of the hash chain.
+        callable: crucible.tools.lab_tools.read_ledger
+        parameters:
+          type: object
+          properties:
+            last_n: {type: integer}
+
+  decision_agent:
+    type: agent
+    policies:
+      least_privilege:
+        type: function
+        handler: crucible.policies.least_privilege.make_least_privilege_policy
+        factory_params:
+          blocked_prefixes:
+            - mcp__claude_ai_
+      blinding:
+        type: function
+        handler: crucible.policies.blinding.make_blinding_policy
+        factory_params:
+          ledger_path: ledger/ledger.jsonl
+          gated_tools:
+            - query_oracle
+            - run_campaign
+      call_cap:
+        type: function
+        handler: omnigent.policies.builtins.safety.max_tool_calls_per_session
+        factory_params:
+          limit: 300
+    description: Updates the lab's beliefs from the result and chooses the next experiment.
+    prompt: |
+      You are the Decision agent of CRUCIBLE. You own one decision: what the lab believes now and what
+      it should test next. Call read_ledger and get_results with the run id (run-<prereg id>).
+      Write one entry: entry_type "decision", id dec-001, label "INFERENCE", agent "Decision", parents
+      [result-<prereg id>, <prereg id>, h-001, h-002, h-003]. In the text: which preregistered decision
+      rule fired (quote it), what changed in the lab's beliefs, any surprise that reopens an assumption,
+      the next experiment, and the validation still needed before real-world use. In payload_json:
+      {"rule_fired": "...", "updated_confidence": {"h-001": x, "h-002": y, "h-003": z},
+      "next_experiment": {...}, "limitations": [...]}.
+      Use only numbers that appear in the results. State uncertainty explicitly.
+    tools:
+      read_ledger:
+        type: function
+        description: Read recent ledger entries and the integrity status of the hash chain.
+        callable: crucible.tools.lab_tools.read_ledger
+        parameters:
+          type: object
+          properties:
+            last_n: {type: integer}
+      get_results:
+        type: function
+        description: Read the stored summary of a completed run.
+        callable: crucible.tools.lab_tools.get_results
+        parameters:
+          type: object
+          properties:
+            run_id: {type: string}
+          required: [run_id]
+      write_ledger_entry:
+        type: function
+        description: Append one entry to the research ledger. Pass payload as a JSON string in payload_json.
+        callable: crucible.tools.lab_tools.write_ledger_entry
+        parameters:
+          type: object
+          properties:
+            entry_id: {type: string}
+            entry_type: {type: string, enum: [evidence, hypothesis, critique, experiment_design, preregistration, decision, prediction]}
+            agent: {type: string}
+            label: {type: string, enum: [FACT, EVIDENCE, INFERENCE, HYPOTHESIS, RESULT, UNCERTAINTY]}
+            text: {type: string}
+            citations: {type: array, items: {type: string}}
+            parents: {type: array, items: {type: string}}
+            confidence: {type: number}
+            payload_json: {type: string}
+          required: [entry_id, entry_type, agent, label, text]
+
+policies:
+  least_privilege:
+    type: function
+    handler: crucible.policies.least_privilege.make_least_privilege_policy
+    factory_params:
+      blocked_prefixes:
+        - mcp__claude_ai_
+  blinding:
+    type: function
+    handler: crucible.policies.blinding.make_blinding_policy
+    factory_params:
+      ledger_path: ledger/ledger.jsonl
+      gated_tools:
+        - query_oracle
+        - run_campaign
+  call_cap:
+    type: function
+    handler: omnigent.policies.builtins.safety.max_tool_calls_per_session
+    factory_params:
+      limit: 300
