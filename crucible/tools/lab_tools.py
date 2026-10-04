@@ -133,8 +133,6 @@ def write_ledger_entry(
 
 def _compact(summary: dict) -> dict:
     s = json.loads(json.dumps(summary))
-    for arm in s["arms"].values():
-        arm.pop("per_seed", None)
     return s
 
 

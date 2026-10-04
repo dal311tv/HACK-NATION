@@ -127,11 +127,29 @@ def _run_arm(spec, X, families, ids, oracle, initial_idx, seed):
     return snapshots
 
 
-def _bootstrap_ci(values, n_boot=5000, seed=0):
+def _bootstrap_ci(values, n_boot=5000, seed=0, level=0.95):
     v = np.asarray(values, dtype=float)
     rng = np.random.default_rng(seed)
     means = rng.choice(v, size=(n_boot, len(v)), replace=True).mean(axis=1)
-    return [float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))]
+    tail = (1.0 - level) / 2.0 * 100.0
+    return [float(np.percentile(means, tail)), float(np.percentile(means, 100.0 - tail))]
+
+
+def _secondary_checks(per_seed):
+    c, b = per_seed["C_crucible"], per_seed["B_baseline_ei"]
+    strata = {}
+    for label, keep in (("initial_top_hits_0", lambda h: h == 0), ("initial_top_hits_ge1", lambda h: h >= 1)):
+        diffs = [x["final_recall"] - y["final_recall"] for x, y in zip(c, b) if keep(x["initial_top_hits"])]
+        strata[label] = {
+            "n_seeds": len(diffs),
+            "mean_difference_C_minus_B": float(np.mean(diffs)) if diffs else None,
+        }
+    diversity = {arm: float(np.mean([r["distinct_families_among_hits"] for r in rows])) for arm, rows in per_seed.items()}
+    return {
+        "primary_delta_by_initial_top_hits": strata,
+        "mean_distinct_element_families_among_top_hits": diversity,
+        "diversity_note": "Proxy for the preregistered anion / light-element group check: number of distinct element families (unique element sets) among the top-5% hits each arm found. Declared deviation.",
+    }
 
 
 def _calls_to(curve, level):
@@ -193,9 +211,11 @@ def run_campaign(candidate_spec: dict, run_id: str) -> dict:
     }
     per_seed = {arm: [] for arm in arms}
     curve_rows = []
+    initial_hashes = []
     total_calls = 0
     for seed in range(PROTOCOL["n_seeds"]):
         initial = np.random.default_rng(seed).choice(n, size=PROTOCOL["initial_size"], replace=False)
+        initial_hashes.append(hashlib.sha256(",".join(map(str, sorted(initial.tolist()))).encode()).hexdigest()[:12])
         for arm, spec in arms.items():
             oracle = Oracle(labels)
             snapshots = _run_arm(spec, matrices[spec["feature_set"]], families, ids, oracle, initial, seed)
@@ -206,6 +226,10 @@ def run_campaign(candidate_spec: dict, run_id: str) -> dict:
                 "final_recall": curve[-1][1],
                 "calls_to_50pct": _calls_to(curve, 0.5),
                 "oracle_calls": oracle.calls,
+                "auc_normalized": float(np.mean([r for _, r in curve])),
+                "initial_top_hits": len(top_set.intersection(initial.tolist())),
+                "top_hits_found": len(top_set.intersection(snapshots[-1])),
+                "distinct_families_among_hits": len({families[i] for i in top_set.intersection(snapshots[-1])}),
             })
             curve_rows += [{"arm": arm, "seed": seed, "oracle_calls": c, "recall": r} for c, r in curve]
 
@@ -222,12 +246,17 @@ def run_campaign(candidate_spec: dict, run_id: str) -> dict:
             "per_seed": rows,
         }
 
-    def paired(a, b):
-        diffs = [x["final_recall"] - y["final_recall"] for x, y in zip(per_seed[a], per_seed[b])]
+    def paired(a, b, metric="final_recall"):
+        diffs = [x[metric] - y[metric] for x, y in zip(per_seed[a], per_seed[b])]
         return {
+            "metric": metric,
             "mean_difference": float(np.mean(diffs)),
             "difference_95ci": _bootstrap_ci(diffs),
+            "difference_90ci": _bootstrap_ci(diffs, level=0.90),
+            "per_seed_differences": [float(d) for d in diffs],
             "seeds_first_better": int(sum(d > 0 for d in diffs)),
+            "seeds_second_better": int(sum(d < 0 for d in diffs)),
+            "ties": int(sum(d == 0 for d in diffs)),
             "n_seeds": len(diffs),
         }
 
@@ -256,9 +285,16 @@ def run_campaign(candidate_spec: dict, run_id: str) -> dict:
             "C_vs_B_baseline": paired("C_crucible", "B_baseline_ei"),
             "C_vs_A_random": paired("C_crucible", "A_random"),
             "B_full_vs_B_composition_only": paired("B_baseline_ei", "B_ablation_composition_only"),
+            "C_vs_B_baseline_auc": paired("C_crucible", "B_baseline_ei", "auc_normalized"),
+            "B_full_vs_B_composition_only_auc": paired("B_baseline_ei", "B_ablation_composition_only", "auc_normalized"),
         },
+        "secondary_checks": _secondary_checks(per_seed),
         "speedup_vs_random_calls_to_50pct": {a: speedup_vs_random(a) for a in arms if a != "A_random"},
         "C_vs_B_calls_to_50pct_ratio": (b_med / c_med) if (b_med and c_med) else None,
+        "pairing_check": {
+            "method": "By construction: each seed draws one initial labeled set, reused unchanged by every arm in that seed.",
+            "initial_set_hash_per_seed": initial_hashes,
+        },
         "total_oracle_calls_simulated": total_calls,
         "data_hashes": {"pool_features.csv": _sha256(POOL_PATH), "phonons_labels.csv": _sha256(LABELS_PATH)},
         "runtime_seconds": round(time.time() - started, 1),
